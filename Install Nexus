@@ -1,0 +1,83 @@
+nstall SonaType Nexus 3 On Ubuntu 20.04 LTS
+I was reading several tutorials about him, I made several attempts, I was beaten all the time and I will show you the way it should be.
+
+Mandatory Packages
+
+OpenJDK 1.8
+
+Before install Java
+
+sudo apt-get install openjdk-8-jdk
+
+sudo apt-get update
+
+Java
+
+sudo apt-get install openjdk-8-jdk
+
+Execute the below commands — navigate to /opt directory by changing directory:
+
+Download Nexus
+
+http://download.sonatype.com/nexus/3/nexus-3.22.0-02-unix.tar.gz
+
+Extract Nexus
+
+sudo tar -xvf latest-unix.tar.gz
+
+sudo mv latest-unix nexus
+
+Create a user called Nexus
+
+sudo adduser nexus
+
+Give some password may be as admin, but do remember.
+
+Keep entering enter for all other values and press y to confirm the entries.
+
+Give permission to Nexus user
+sudo chown -R nexus:nexus /opt/nexus
+sudo chown -R nexus:nexus /opt/sonatype-work
+
+sudo vim /opt/nexus/bin/nexus.rc
+
+change run_as_user=”nexus”
+
+Modify memory settings
+
+sudo vim /opt/nexus/bin/nexus.vmoptions
+
+Add all the below changes the file with below highlighted entry:
+
+Configure Nexus to run as a service
+sudo vim /etc/systemd/system/nexus.service
+Copy the below content.
+
+[Unit]
+Description=nexus service
+After=network.target
+
+[Service]
+Type=forking
+LimitNOFILE=65536
+User=nexus
+Group=nexus
+ExecStart=/opt/nexus/bin/nexus start
+ExecStop=/opt/nexus/bin/nexus stop
+User=nexus
+Restart=on-abort
+[Install]
+WantedBy=multi-user.target
+__________________________________________________________________________________________________________________________
+Now Start Nexus
+
+sudo systemctl enable nexus
+
+sudo systemctl start nexus
+
+sudo systemctl status nexus
+
+If it says stopped, review the steps above and you can troubleshoot by looking into Nexus logs by executing below command:
+
+tail -f /opt/sonatype-work/nexus3/log/nexus.log
+
