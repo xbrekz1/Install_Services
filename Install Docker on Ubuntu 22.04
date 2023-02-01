@@ -1,0 +1,107 @@
+Install Docker Engine
+Update the apt package index:
+
+
+ sudo apt-get update
+Receiving a GPG error when running apt-get update?
+
+Your default umask may be incorrectly configured, preventing detection of the repository public key file. Try granting read permission for the 
+Docker public key file before updating the package index:
+
+
+ sudo chmod a+r /etc/apt/keyrings/docker.gpg
+ sudo apt-get update
+Install Docker Engine, containerd, and Docker Compose.
+
+Latest
+Specific version
+
+To install the latest version, run:
+
+
+ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+Verify that the Docker Engine installation is successful by running the hello-world image:
+
+
+ sudo docker run hello-world
+This command downloads a test image and runs it in a container. When the container runs, it prints a confirmation message and exits.
+
+You have now successfully installed and started Docker Engine. The docker user group exists but contains no users, which is why you’re required 
+to use sudo to run Docker commands. Continue to Linux post-install to allow non-privileged users to run Docker commands and for other optional 
+configuration steps.
+
+Upgrade Docker Engine
+To upgrade Docker Engine, follow the installation instructions, choosing the new version you want to install.
+
+Install from a package
+If you can’t use Docker’s apt repository to install Docker Engine, you can download the deb file for your release and install it manually. You need 
+to download a new file each time you want to upgrade Docker Engine.
+
+Go to https://download.docker.com/linux/ubuntu/dists/.
+
+Select your Ubuntu version in the list.
+
+Go to pool/stable/ and select the applicable architecture (amd64, armhf, arm64, or s390x).
+
+Download the following deb files for the Docker Engine, CLI, containerd, and Docker Compose packages:
+
+containerd.io_<version>_<arch>.deb
+docker-ce_<version>_<arch>.deb
+docker-ce-cli_<version>_<arch>.deb
+docker-compose-plugin_<version>_<arch>.deb
+Install the .deb packages. Update the paths in the following example to where you downloaded the Docker packages.
+
+
+ sudo dpkg -i ./containerd.io_<version>_<arch>.deb \
+  ./docker-ce_<version>_<arch>.deb \
+  ./docker-ce-cli_<version>_<arch>.deb \
+  ./docker-compose-plugin_<version>_<arch>.deb
+The Docker daemon starts automatically.
+
+Verify that the Docker Engine installation is successful by running the hello-world image:
+
+
+ sudo docker run hello-world
+This command downloads a test image and runs it in a container. When the container runs, it prints a confirmation message and exits.
+
+You have now successfully installed and started Docker Engine. The docker user group exists but contains no users, which is why you’re required to 
+use sudo to run Docker commands. Continue to Linux post-install to allow non-privileged users to run Docker commands and for other optional 
+configuration steps.
+
+Upgrade Docker Engine
+To upgrade Docker Engine, download the newer package file and repeat the installation procedure, pointing to the new file.
+
+Install using the convenience script
+Docker provides a convenience script at https://get.docker.com/ to install Docker into development environments non-interactively. The convenience 
+script isn’t recommended for production environments,
+ but it’s useful for creating a provisioning script tailored to your needs. Also refer to the install using the repository steps to learn about 
+installation steps to install using the package repository. The source code for the script is open source, and can be found in the docker-install 
+repository on GitHub.
+
+Always examine scripts downloaded from the internet before running them locally. Before installing, make yourself familiar with potential risks and 
+limitations of the convenience script:
+
+The script requires root or sudo privileges to run.
+The script attempts to detect your Linux distribution and version and configure your package management system for you.
+The script doesn’t allow you to customize most installation parameters.
+The script installs dependencies and recommendations without asking for confirmation. This may install a large number of packages, depending 
+on the current configuration of your host machine.
+By default, the script installs the latest stable release of Docker, containerd, and runc. When using this script to provision a machine, 
+this may result in unexpected major version upgrades of Docker. Always test upgrades in a test environment before deploying to your production systems.
+The script isn’t designed to upgrade an existing Docker installation. When using the script to update an existing installation, dependencies may 
+not be updated to the expected version, resulting in outdated versions.
+Tip: preview script steps before running
+
+You can run the script with the --dry-run option to learn what steps the script will run when invoked:
+
+
+ curl -fsSL https://get.docker.com -o get-docker.sh
+ sudo sh ./get-docker.sh --dry-run
+This example downloads the script from https://get.docker.com/ and runs it to install the latest stable release of Docker on Linux:
+
+
+ curl -fsSL https://get.docker.com -o get-docker.sh
+ sudo sh get-docker.sh
+You have now successfully installed and started Docker Engine. The docker service starts automatically on Debian based distributions. On RPM 
+based distributions, such as CentOS, Fedora, RHEL or SLES, you need to start it manually using the appropriate systemctl or service command. 
+As the message indicates, non-root users can’t run Docker commands by default.
