@@ -1,0 +1,63 @@
+Настройка SSL сертификата
+Получение SSL сертификата необходимо для использования протокола HTTPS. Данный протокол защищает соединение между сервером и клиентом, особенно
+ критично для чувствительных данных, таких как логины, пароли, данные по банковским картам, переписка и так далее. Последние несколько лет поисковые
+ системы наиболее лояльны к сайтам, использующих данный протокол, есть прекрасная возможность получить ssl сертификат бесплатно от Let’s Encrypt,
+ устанавливаем его клиент certbot из официального репозитория:
+
+
+apt install certbot python3-certbot-nginx
+Будет задан вопрос: Do you want to continue? [Y/n]
+Нажимаем Y, затем ENTER.
+
+Запрашиваем сертификат у Certbot:
+
+
+certbot certonly --agree-tos -m mymail@yandex.ru --webroot -w /home/webuser/www/sampledomain.ru/ -d sampledomain.ru
+Появится вопрос о передаче вашего адреса электронной почты компании партнеру: (Y)es/(N)o:
+Жмем Y, потом ENTER.
+
+Сертификат успешно получен, если появилось сообщение:
+
+
+IMPORTANT NOTES:
+ — Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/sampledomain.ru/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/sampledomain.ru/privkey.pem
+   Your cert will expire on 2021-05-27. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot
+   again. To non-interactively renew *all* of your certificates, run
+   "certbot renew"
+ — Your account credentials have been saved in your Certbot
+   configuration directory at /etc/letsencrypt. You should make a
+   secure backup of this folder now. This configuration directory will
+   also contain certificates and private keys obtained by Certbot so
+   making regular backups of this folder is ideal.
+ — If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le 
+Сертификат действителен 90 дней. Теперь необходимо позаботиться об автоматическом продлении сертификатов, открываем файл:
+
+
+nano /etc/cron.d/certbot
+Приводим его к следующему виду:
+
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+0 */12 * * * root test -x /usr/bin/certbot -a \! -d /run/systemd/system && perl -e 'sleep int(rand(43200))' && certbot -q renew --renew-hook 
+"systemctl reload nginx"
+Нажимаем комбинацию клавиш Ctrl+O, внизу появится строка подтверждения: File Name to Write: /etc/cron.d/certbot, нажимаем ENTER для сохранения изменений, затем Ctrl+X для выхода из редактора.
+
+Дважды в день будет происходить проверка необходимости обновления сертификатов на сервере, если какому-либо осталось 30 дней и меньше до истечения 
+срока действия – он будет обновлен, а nginx перезагружен.
+
+Протестируем процесс обновления без внесения изменений:
+
+
+certbot renew --dry-run
+Ждем около полминуты, на экран будет выведен подробный отчет. Если присутствует строка Congratulations, all renewals succeeded – значит все 
+настроено правильно. Если когда-либо в процессе обновления произойдет сбой – Let’s Encrypt уведомит о приближающимся конце срока действия 
+сертификата по электронной почте, указанной при первом запросе.
+
