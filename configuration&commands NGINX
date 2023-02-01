@@ -1,0 +1,960 @@
+В данной статье описана установка и настройка высокопроизводительного современного веб-сервера nginx на примере облачной платформы Selectel. 
+Все действия актуальны для ОС Ubuntu 20.04 LTS 64-bit.
+
+Nginx — это веб-сервер с открытым исходным кодом, созданный работать под высокой нагрузкой, чаще всего используемый для отдачи статического контента, 
+например, html страниц, медиафайлов, документов, архивов, картинок и т.д.
+
+Подготовка сервера
+Для начала установим сам сервер. После прохождения регистрации, необходимо войти в панель управления. Далее в меню «Облачная платформа» — 
+«Создать сервер».
+
+
+Откроется оснастка создания сервера, где необходимо задать понятное для дальнейшей работы имя сервера, в примере это «WebSrv01». Регион и зону 
+можно оставить без изменения. Для выбора операционной системы необходимо нажать кнопку «Выбрать другой источник».
+
+
+Откроется меню «Выбор источника».
+
+
+В поле «Операционные системы», выбираем Ubuntu, в левом поле появится список всех доступных образов операционных систем на базе данной ОС, выбираем 
+«Ubuntu 20.04 LTS 64-bit» и нажимаем кнопку «Выбрать».
+
+Перемещаемся вниз по странице. В нашем примере используется только «Локальный диск», флажок установлен, в поле «Сетевые диски» нажимаем кнопку 
+«Удалить диск».
+
+
+В поле «Сеть», поскольку это наш первый сервер выбираем «Приватная подсеть + 1 плавающий IP», после выбора значение в поле сменится на 
+«Новый плавающий IP адрес».
+
+Необходимо скопировать «Пароль для root», он понадобиться для первоначальной настройки сервера через SSH протокол.
+
+
+Нажимаем кнопку «Создать», сервер будет доступен примерно через 1 минуту. Переходим в меню «Облачная платформа» — «Серверы».
+
+
+В списке появится сервер с именем, что задали ранее, его IP адрес, который будем использовать для удаленного подключения, на скриншоте в области с цифрой 3, статус сервера ALIVE, означает готовность сервера. Подключаемся к серверу, используя любой SSH-клиент.
+
+Проведем небольшую первоначальную настройку сервера. Обновим информацию о доступных пакетах из подключенных репозиториев:
+
+
+apt update
+Создадим непривилегированного пользователя, в нашем случае webuser:
+
+
+adduser webuser
+Появится интерактивный диалог, в ходе которого необходимо будет задать пароль (New password), подтвердить его (Retype new password), 
+остальные пункты можно не заполнять, просто нажимая ENTER. В последнем вопросе Is the information correct? [Y/n] необходимо нажать Y и нажать ENTER.
+
+Добавляем пользователя webuser в группу sudo для повышения привилегий:
+
+
+usermod -aG sudo webuser
+Открываем конфигурационный файл SSH-сервера:
+
+
+nano /etc/ssh/sshd_config
+В открывшемся текстовом файле ищем строку #Port 22 и удаляем в начале строки символ комментария #, стандартный номер порта 
+22 рекомендуется сменить в целях безопасности, пускай это будет 22100. В конечном итоге строка должна выглядеть следующим образом:
+
+
+Port 22100
+Переходим к строке PermitRootLogin yes, меняем значение на no, тем самым запретив вход пользователя root напрямую:
+
+
+PermitRootLogin no
+Находясь в редакторе, нажимаем комбинацию клавиш Ctrl+O, внизу появится строка подтверждения: File Name to Write: /etc/ssh/sshd_config, 
+нажимаем ENTER для сохранения изменений, затем Ctrl+X для выхода из редактора.
+
+После изменений файла конфигурации SSH сервера, необходимо выполнить его перезапуск для того, чтобы изменения вступили в силу:
+
+
+service sshd restart
+Установка nginx
+Установка сервера nginx может быть выполнена как непосредственно на машину, так и в виде docker контейнера. У каждого метода есть свои 
+преимущества и недостатки, описание которых выходит за рамки данной статьи. Мы посмотрим оба варианта.
+
+Начнем с непосредственной установки на сервер:
+
+
+apt install nginx
+Будет задан вопрос: Do you want to continue? [Y/n]
+Нажимаем Y, затем ENTER.
+
+Дожидаемся окончания процесса установки.
+
+Разрешим автозапуск сервера:
+
+
+systemctl enable nginx
+Проверяем результат:
+
+
+systemctl is-enabled nginx
+Если в ответ получили «enabled», значит nginx успешно добавлен в автозагрузку.
+
+Запуск nginx
+Стартуем наш веб-сервер:
+
+
+service nginx start
+Проверяем статус:
+
+
+service nginx status
+Если в статусе присутствует строка Active: active (running), значит сервер работает. Также в этом можно убедиться, 
+набрав в адресной строке браузера IP адрес сервера, будет отображено приветственное сообщение от nginx, которое выглядит так:
+
+
+Nginx в Docker
+Для установки Docker, нужно подготовить систему. Устанавливаем необходимые пакеты:
+
+
+apt install apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+Будет задан вопрос: Do you want to continue? [Y/n]
+Нажимаем Y, затем ENTER.
+
+Добавляем GPG ключ официального репозитория Docker в систему:
+
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+В следующей строке появится надпись OK, добавляем репозиторий Docker:
+
+
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+Теперь необходимо обновить информацию о пакетах:
+
+
+apt update
+Проверим, что установка Docker будет происходить из его репозитория:
+
+
+apt-cache policy docker-ce
+В ответ должны получить много строк, среди которых должен присутствовать адрес репозитория, добавленный ранее, в нашем примере это:
+
+
+https://download.docker.com/linux/ubuntu focal/stable
+Ставим сам Docker:
+
+
+apt install docker-ce
+Будет задан вопрос: Do you want to continue? [Y/n]
+Нажимаем Y, затем ENTER.
+
+Дожидаемся окончания процесса установки. После docker будет автоматически запущен и добавлен в автозагрузку. Проверим:
+
+
+systemctl status docker
+В выводе команды должна присутствовать строка Active: active (running), значит процесс-демон работает.
+
+
+systemctl is-enabled docker
+В ответе увидели «enabled», значит docker успешно добавлен в автозагрузку. На этом установка Docker завершена, переходим к запуску в 
+контейнере веб-сервера nginx.
+
+Создадим проект и его структуру папок в домашнем каталоге нашего пользователя webuser:
+
+
+mkdir -p /home/webuser/myproject/www
+
+mkdir -p /home/webuser/myproject/nginx_logs
+
+echo '<html><body>Hello from NGINX in Docker!</body></html>' > /home/webuser/myproject/www/index.html
+Устанавливаем и запускаем nginx в Docker одной командой:
+
+
+docker run --name nginx_myproject -p 8080:80 -v /home/webuser/myproject/www:/usr/share/nginx/html
+ -v /home/webuser/myproject/nginx_logs:/var/log/nginx -d nginx
+Docker скачает официальный образ nginx с Docker Hub, сконфигурирует и запустит контейнер.
+
+Здесь:
+
+nginx_myproject – имя контейнера, создаваемого на базе образа nginx.
+Конструкция –p 8080:80 выполняет проброс портов, с порта 8080 локальной машины на порт 80 контейнера.
+Флаги –v по аналогии с портом – пробрасывают локальную директорию внутрь контейнера, т.е. директория /home/webuser/myproject/www на локальной 
+машине будет доступна в контейнере как /usr/share/nginx/html, и /home/webuser/myproject/nginx_logs в контейнере это /var/log/nginx.
+Проверяем, работает ли контейнер:
+
+
+docker ps
+Вывод команды должен быть примерно следующим:
+
+
+CONTAINER ID   IMAGE     COMMAND                  CREATED       STATUS       PORTS                  NAMES
+f35d422d233a   nginx     "/docker-entrypoint.…"   7 hours ago   Up 7 hours   0.0.0.0:8080->80/tcp   nginx_myproject
+Стоит обратить внимание на столбец NAMES, где обнаруживаем имя созданного ранее контейнера nginx_myproject, колонка STATUS, в которой 
+отображается состояние контейнера, в данном случае он работает уже 7 часов. Если набрать в адресной строке браузера IP адрес сервера и через 
+двоеточие порт, используемый контейнером 8080, т.е. конструкцию вида 123.123.123.123:8080, то в ответ получим:
+
+
+«Hello from NGINX in Docker!»
+Мы научились запускать веб-сервер nginx в контейнере!
+
+Проброс портов, папок, а так же многий другой функционал, предоставляемый контейнеризацией, должен быть использован исходя из поставленных задач, 
+разнообразие которых выходит за рамки данной статьи. Дальнейшее описание работы с nginx рассматривается в рамках работы непосредственно на сервере, 
+без контейнеризации.
+
+Иерархия каталогов nginx
+Администрирование сервера nginx в основном заключается в настройке и поддержке его файлов конфигурации, которые находятся в папке /etc/nginx.
+ Рассмотрим подробнее:
+
+/etc/nginx/nginx.conf – главный файл конфигурации nginx.
+/etc/nginx/sites-available – каталог с конфигурациями виртуальных хостов, т.е. каждый файл, находящийся в этом каталоге, содержит информацию 
+о конкретном сайте – его имени, IP адресе, рабочей директории и многое другое.
+/etc/nginx/sites-enabled – в этом каталоге содержаться конфигурации сайтов, обслуживаемых nginx, т.е. активных, как правило, это символические
+ ссылки sites-available конфигураций, что очень удобно для оперативного включения и отключения сайтов.
+Настройка nginx
+Рассмотрим главный конфигурационный файл nginx — /etc/nginx/nginx.conf. По умолчанию он выглядит следующим образом:
+
+
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+events {
+        worker_connections 768;
+}
+http {
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers on;
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log;
+        gzip on;
+        include /etc/nginx/conf.d/*.conf;
+        include /etc/nginx/sites-enabled/*;
+}
+Конфигурационный файл состоит из директив. О них и пойдет речь дальше.
+
+Директивы
+Существует два вида директив – простые и блочные. Простая директива состоит из имени и параметров, разделённых пробелами, и в конце 
+строки ставится точкой с запятой (;). Блочная директива устроена так же, как и простая директива, но вместо точки с запятой после имени и параметров 
+следует набор дополнительных инструкций, помещённых внутри фигурных скобок ({ и }). Рассмотрим те, которые пригодятся нам для примера:
+
+user – пользователь, от имени которого работает nginx, здесь это www-data;
+worker_processes – количество процессов сервера, значение выставляется равным количеству ядер процессора, auto – сервер определит автоматически;
+pid – файл, внутри которого хранится идентификатор запущенного главного процесса (PID);
+include – подключаемый файл или файлы конфигурации;
+events – блок директив, определяющих работу с сетевыми соединениями;
+worker_connections – максимальное количество одновременных соединений;
+http – блок директив http сервера;
+sendfile – метод отправки данных, включаем значением on;
+tcp_nopush и tcp_nodelay – параметры, положительно влияющие на производительность, оставляем значение on;
+keepalive_timeout – время ожидания keepalive соединения до его разрыва со стороны сервера;
+types_hash_max_size – регламентирует максимальный размер хэш таблиц типов;
+default_type – указывает тип MIME ответа по умолчанию;
+ssl_protocols – включает указанные протоколы;
+ssl_prefer_server_ciphers – указывает, что серверное шифрование; предпочтительнее клиентского, при использовании SSLv3 и TLS протоколов;
+access_log – задает путь к файлу лога доступа, при выставлении значения в off, запись в журнал доступа будет отключена;
+error_log – путь к журналу регистрации ошибок;
+gzip – при помощи этой директивы можно включать или отключать сжатие.
+Переменные в nginx
+В конфигурационных файлах nginx допустимо пользоваться встроенными переменными. Преимущественно это переменные, представляющие собой 
+поля заголовка запроса клиента, такие как $remote_addr, $server_name. Все переменные начинаются со знака $, с полным перечнем можно ознакомиться 
+в документации, на официальном сайте.
+
+Установка и настройка php-fpm
+Для работы веб приложений, написанных на языке PHP необходимо установить php-fpm в качестве бэкэнда:
+
+
+apt install php-fpm php-mysql
+Будет задан вопрос: Do you want to continue? [Y/n]
+Нажимаем Y, затем ENTER.
+
+После установки сервис будет автоматически запущен и добавлен в автозагрузку. Создаем файл пула для конкретного сайта sampledomain.ru:
+
+
+touch /etc/php/7.4/fpm/pool.d/sampledomain.ru.conf
+
+nano /etc/php/7.4/fpm/pool.d/sampledomain.ru.conf
+Создаем следующую конфигурацию:
+
+
+[sampledomain.ru]
+listen = /var/run/php/sampledomain.ru.sock
+listen.mode = 0666
+user = webuser
+group = webuser
+chdir = /home/webuser/www/sampledomain.ru
+
+php_admin_value[upload_tmp_dir] = /home/webuser/tmp
+php_admin_value[soap.wsdl_cache_dir] = /home/webuser/tmp
+php_admin_value[date.timezone] = Europe/Moscow
+php_admin_value[upload_max_filesize] = 100M
+php_admin_value[post_max_size] = 100M
+php_admin_value[open_basedir] = /home/webuser/www/sampledomain.ru/
+php_admin_value[session.save_path] = /home/webuser/tmp
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+php_admin_value[cgi.fix_pathinfo] = 0
+php_admin_value[apc.cache_by_default] = 0
+
+pm = dynamic
+pm.max_children = 7
+pm.start_servers = 3
+pm.min_spare_servers = 2
+pm.max_spare_servers = 4
+Нажимаем комбинацию клавиш Ctrl+O, внизу появится строка подтверждения: File Name to Write: /etc/php/7.4/fpm/pool.d/sampledomain.ru.conf, 
+нажимаем ENTER для сохранения изменений, затем Ctrl+X для выхода из редактора.
+
+Перезагружаем сервис php-fpm, чтобы он мог перечитать файлы конфигураций:
+
+
+service php7.4-fpm restart
+Проверяем, что сервис перезапустился корректно и наша новая конфигурация sampledomain.ru обслуживается:
+
+
+service php7.4-fpm status
+О том, что сервис запущен, свидетельствует наличие строки Active: active (running), чуть ниже список обслуживаемых конфигураций в виде дерева, 
+где можно увидеть php-fpm: pool sampledomain.ru, значит все работает.
+
+Конфигурация nginx
+Структура директорий веб проекта будет размещена в домашней папке пользователя webuser, это облегчит дальнейшую унификацию конфигурационных
+ файлов и масштабируемость. Например, когда возникает необходимость на одном сервере разместить несколько сайтов, у каждого из них свой владелец. 
+В таком случае создается новый пользователь, пусть будет webuser2, аналогично в его папке разворачивается такая же структура каталогов.
+
+У нас имеется главный конфигурационный файл, содержимое которого оставляем неизменным для примера. Создадим файл виртуального хоста:
+
+
+touch /etc/nginx/sites-available/sampledomain.ru.conf
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Заполняем его следующим содержимым:
+
+
+server
+        {
+        listen 80;
+    	  server_name sampledomain.ru www.sampledomain.ru;
+        charset utf-8;
+        root /home/webuser/www/sampledomain.ru;
+        index index.php index.html index.htm;
+
+    # Static content
+        		location ~* ^.+.(jpg|jpeg|gif|png|css|zip|tgz|gz|rar|bz2|doc|xls|exe|pdf|ppt|txt|tar|mid|midi|wav|mp3|bmp|flv|rtf|js|swf|iso)$ {
+      root /home/webuser/www/sampledomain.ru;
+                   }
+
+    location ~ \.php$
+        {
+          include fastcgi.conf;
+          fastcgi_intercept_errors on;
+          try_files $uri =404;
+          fastcgi_pass unix://var/run/php/sampledomain.ru.sock;
+        }
+
+    location / {
+        try_files $uri $uri/ /index.php?q=$uri$args;
+    }
+    }
+Нажимаем комбинацию клавиш Ctrl+O, внизу появится строка подтверждения: File Name to Write: /etc/nginx/sites-available/sampledomain.ru.conf,
+ нажимаем ENTER для сохранения изменений, затем Ctrl+X для выхода из редактора.
+
+Создаем символическую ссылку на данный виртуальный хост из директории /etc/nginx/sites-available в директорию /etc/nginx/sites-enabled, 
+чтобы nginx его обслуживал:
+
+
+ln -s /etc/nginx/sites-available/sampledomain.ru.conf /etc/nginx/sites-enabled/
+Необходимо создать структуру каталогов веб проекта:
+
+
+mkdir -p /home/webuser/www/sampledomain.ru
+
+mkdir -p /home/webuser/tmp
+Создаем файл для тестирования работы связки nginx и php-fpm:
+
+
+echo "<?php phpinfo(); ?>" > /home/webuser/www/sampledomain.ru/index.php
+Задаем владельца каталогов и находящихся внутри файлов:
+
+
+chown -R webuser:webuser /home/webuser/www/
+
+chown -R webuser:webuser /home/webuser/tmp/
+Добавляем пользователя www-data в группу webuser:
+
+
+usermod -aG webuser www-data
+Конфиги написаны, директории созданы, перезапускаем nginx для того, чтобы он перечитал файлы конфигураций:
+
+
+service nginx restart
+Переходим в браузере по адресу http://sampledomain.ru и должны увидеть такую картину:
+
+
+Все настроили правильно.
+
+Команды nginx
+Рассмотрим несколько команд, которые полезно знать администратору. После внесения изменений в конфигурационные файлы сервера, рекомендуется
+ провести их синтаксический контроль:
+
+
+nginx -t
+Если все хорошо, в результате получим сообщение:
+
+
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+В случае обнаружения ошибок, сервер уведомит об этом. Чтобы узнать используемую версию сервера, нужно ввести:
+
+
+nginx –v
+Можно получить расширенную информацию об nginx – его версию, параметры конфигурации сборки:
+
+
+nginx –V
+Когда существует необходимость оперативно, но аккуратно перезапустить веб-сервер, чтобы пользователи на данный момент, работающие с ним, 
+не потеряли соединение, но в то же время, вновь подключившиеся уже работали с учетом последних изменений конфигурации. В таком случае, вместо
+ restart необходимо использовать команду reload:
+
+
+service nginx reload
+Настройка SSL сертификата
+Получение SSL сертификата необходимо для использования протокола HTTPS. Данный протокол защищает соединение между сервером и клиентом, особенно 
+критично для чувствительных данных, таких как логины, пароли, данные по банковским картам, переписка и так далее. Последние несколько лет поисковые
+ системы наиболее лояльны к сайтам, использующих данный протокол, есть прекрасная возможность получить ssl сертификат бесплатно от Let’s Encrypt,
+ устанавливаем его клиент certbot из официального репозитория:
+
+
+apt install certbot python3-certbot-nginx
+Будет задан вопрос: Do you want to continue? [Y/n]
+Нажимаем Y, затем ENTER.
+
+Запрашиваем сертификат у Certbot:
+
+
+certbot certonly --agree-tos -m mymail@yandex.ru --webroot -w /home/webuser/www/sampledomain.ru/ -d sampledomain.ru
+Появится вопрос о передаче вашего адреса электронной почты компании партнеру: (Y)es/(N)o:
+Жмем Y, потом ENTER.
+
+Сертификат успешно получен, если появилось сообщение:
+
+
+IMPORTANT NOTES:
+ — Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/sampledomain.ru/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/sampledomain.ru/privkey.pem
+   Your cert will expire on 2021-05-27. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot
+   again. To non-interactively renew *all* of your certificates, run
+   "certbot renew"
+ — Your account credentials have been saved in your Certbot
+   configuration directory at /etc/letsencrypt. You should make a
+   secure backup of this folder now. This configuration directory will
+   also contain certificates and private keys obtained by Certbot so
+   making regular backups of this folder is ideal.
+ — If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le 
+Сертификат действителен 90 дней. Теперь необходимо позаботиться об автоматическом продлении сертификатов, открываем файл:
+
+
+nano /etc/cron.d/certbot
+Приводим его к следующему виду:
+
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+0 */12 * * * root test -x /usr/bin/certbot -a \! -d /run/systemd/system && perl -e 'sleep int(rand(43200))' && certbot -q renew --renew-hook
+ "systemctl reload nginx"
+Нажимаем комбинацию клавиш Ctrl+O, внизу появится строка подтверждения: File Name to Write: /etc/cron.d/certbot, нажимаем ENTER для сохранения изменений,
+ затем Ctrl+X для выхода из редактора.
+
+Дважды в день будет происходить проверка необходимости обновления сертификатов на сервере, если какому-либо осталось 30 дней и меньше до истечения 
+срока действия – он будет обновлен, а nginx перезагружен.
+
+Протестируем процесс обновления без внесения изменений:
+
+
+certbot renew --dry-run
+Ждем около полминуты, на экран будет выведен подробный отчет. Если присутствует строка Congratulations, all renewals succeeded – 
+значит все настроено правильно. Если когда-либо в процессе обновления произойдет сбой – Let’s Encrypt уведомит о приближающимся конце срока действия 
+сертификата по электронной почте, указанной при первом запросе.
+
+Редирект с http на https
+После получения сертификата необходимо прописать директивы в файл конфигурации виртуального хоста, отвечающие за поддержку SSL. Сразу же 
+реализуем перенаправление всех запросов, приходящих на 80-й порт к порту 443, т.е. с http протокола на https. Открываем файл:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Приводим его к следующему виду:
+
+
+server {
+        listen 80;
+        server_name sampledomain.ru www.sampledomain.ru;
+        root /home/webuser/www/sampledomain.ru;
+        return 301 https://sampledomain.ru$request_uri;
+        }
+server
+        {
+        listen 443 ssl;
+        server_name sampledomain.ru www.sampledomain.ru;
+        # SSL support
+        ssl_certificate /etc/letsencrypt/live/sampledomain.ru/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/sampledomain.ru/privkey.pem;
+        charset utf-8;
+        root /home/webuser/www/sampledomain.ru;
+        index index.php index.html index.htm;
+
+        # Static content
+        location ~* ^.+.(jpg|jpeg|gif|png|css|zip|tgz|gz|rar|bz2|doc|xls|exe|pdf|ppt|txt|tar|mid|midi|wav|mp3|bmp|flv|rtf|js|swf|iso)$ {
+                        root /home/webuser/www/sampledomain.ru;
+                   }
+
+        location ~ \.php$
+        {
+                include fastcgi.conf;
+                fastcgi_intercept_errors on;
+                try_files $uri =404;
+                fastcgi_pass unix://var/run/php/sampledomain.ru.sock;
+        }
+
+        location / {
+                try_files $uri $uri/ /index.php?q=$uri$args;
+        }
+        }
+Нажимаем комбинацию клавиш Ctrl+O, внизу появится строка подтверждения: File Name to Write: /etc/nginx/sites-available/sampledomain.ru.conf, 
+нажимаем ENTER для сохранения изменений, затем Ctrl+X для выхода из редактора.
+
+Перезапускаем веб-сервер:
+
+
+service nginx restart
+Теперь в браузере при попытке перехода по адресу http://sampledomain.ru будет выполнено перенаправление на https://sampledomain.ru
+
+Кэширование в nginx
+Основная задача кэширования – это минимизация времени доступа к данным. Nginx умеет работать с несколькими видами кэширования: на стороне сервера, 
+на стороне клиента. Серверное кэширование может иметь самую разнообразную конфигурацию, в зависимости от архитектуры проекта. Поэтому в нашем 
+частном случае рассмотрим кэширование на стороне клиента (браузера) для статического контента.
+
+Открываем файл нашего тестового виртуального хоста:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Находим location, указывающий на отдачу статического контента и добавляем директиву expires:
+
+
+# Static content
+        location ~* ^.+.(jpg|jpeg|gif|png|css|zip|tgz|gz|rar|bz2|doc|xls|exe|pdf|ppt|txt|tar|mid|midi|wav|mp3|bmp|flv|rtf|js|swf|iso)$ {
+                        root /home/webuser/www/sampledomain.ru;
+                        expires 1d;
+                   }
+Как обычно сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. В данном случае файлы, расширения которых 
+соответствуют приведенным выше, будут храниться в браузере клиента, только после истечения суток – они будут запрошены повторно.
+
+Кэширование позволяет значительно уменьшить время доставки контента и его объем, снизить нагрузку на сервер, а значит, ваш сайт сможет 
+работать значительно быстрее и принять больше посетителей.
+
+Мониторинг nginx
+В nginx существует стандартная возможность мониторинга работы сервера, выясним доступность модуля в нашей сборке:
+
+
+nginx -V 2>&1 | grep -o with-http_stub_status_module
+Если в ответ получили with-http_stub_status_module – модуль доступен. Рассмотрим включение мониторинга на примере виртуального хоста, открываем файл:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Добавляем location /nginx_status, в итоге файл выглядит следующим образом:
+
+
+server {
+        listen 80;
+        server_name sampledomain.ru www.sampledomain.ru;
+        root /home/webuser/www/sampledomain.ru;
+        return 301 https://sampledomain.ru$request_uri;
+        }
+server
+        {
+        listen 443 ssl;
+        server_name sampledomain.ru www.sampledomain.ru;
+        # SSL support
+        ssl_certificate /etc/letsencrypt/live/sampledomain.ru/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/sampledomain.ru/privkey.pem;
+        charset utf-8;
+        root /home/webuser/www/sampledomain.ru;
+        index index.php index.html index.htm;
+
+        # Static content
+        location ~* ^.+.(jpg|jpeg|gif|png|css|zip|tgz|gz|rar|bz2|doc|xls|exe|pdf|ppt|txt|tar|mid|midi|wav|mp3|bmp|flv|rtf|js|swf|iso)$ {
+                        root /home/webuser/www/sampledomain.ru;
+                        expires 1d;
+                   }
+
+        location ~ \.php$
+        {
+                include fastcgi.conf;
+                fastcgi_intercept_errors on;
+                try_files $uri =404;
+                fastcgi_pass unix://var/run/php/sampledomain.ru.sock;
+        }
+
+        location / {
+                try_files $uri $uri/ /index.php?q=$uri$args;
+        }
+        location /nginx_status {
+                stub_status on;
+                access_log off;
+
+        }
+        }
+Сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. Перезапускаем веб-сервер:
+
+
+service nginx restart
+В браузере при переходе по адресу sampledomain.ru/nginx_status будет представлена статистика работы сервера:
+
+
+Active connections: 2 
+server accepts handled requests
+ 797 797 334 
+Reading: 0 Writing: 1 Waiting: 1
+Active connections – текущее количество клиентских соединений;
+accepts – принятые соединения;
+handled – обработанные, обычно равно количеству принятых;
+requests – количество клиентских запросов;
+Reading – текущее количество соединений, для которых сервер читает заголовок запроса;
+Writing – текущее количество соединений, для которых сервер отправляет ответ клиенту;
+Waiting – текущее количество простаивающих соединений, для которых сервер ожидает запроса.
+Также статистику можно получить из командной строки:
+
+
+curl https://sampledomain.ru/nginx_status
+Не рекомендуется статистику выставлять на всеобщее обозрение, ниже рассмотрим вопросы безопасности и ограничений доступа.
+
+Проксирование запросов
+Nginx умеет проксировать запросы на другие сервера, понадобиться это для масштабирования и защиты back-end серверов. В качестве примера,
+ запустим back-end сервер apache в контейнере:
+
+
+docker run --name backend_apache -p 8081:80 -d httpd
+Дожидаемся процесса скачивания образа, контейнер запуститься автоматически, убеждаемся, что среди запущенных контейнеров присутствует backend_apache:
+
+
+docker ps
+Открываем файл виртуального хоста:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Изменим блок location / так, чтобы при обращении к sampledomain.ru запрос был передан веб-серверу apache, работающему в контейнере:
+
+
+location / {
+                proxy_pass http://127.0.0.1:8081;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Real-IP $remote_addr;
+        }
+Сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. Перезапускаем веб-сервер:
+
+
+service nginx restart
+Директива proxy_pass задает протокол, адрес и порт проксируемого ресурса, proxy_set_header директивы настраивают заголовки запросов, передают 
+проксируемому ресурсу информацию о соединении.
+
+Если перейти в браузере по адресу http://sampledomain.ru, можно увидеть «It works!», отдаваемый ранее созданным контейнером с apache.
+
+Балансировка нагрузки
+Для улучшения отказоустойчивости, масштабируемости, уменьшения время отклика, распределения полезной нагрузки придумали балансировщики нагрузок. 
+На примере посмотрим, как приспособить для этого nginx.
+
+Открываем файл виртуального хоста:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Над блоком server добавляем следующее:
+
+
+upstream backends {
+    server 127.0.0.1:8080;
+    server 127.0.0.1:8081;
+}
+Также вносим изменения в блок location /:
+
+
+location / {
+                proxy_pass http://backends;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Real-IP $remote_addr;
+        }
+Сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. Перезапускаем веб-сервер:
+
+
+service nginx restart
+Директива upstream перечисляет все back-end сервера, между которыми следует распределить нагрузку. В блоке location / изменился параметр 
+директивы proxy_pass на http://backends, где backends – имя, которое присвоили группе серверов директивы upstream.
+
+Ранее мы запустили два контейнера: первый с nginx на порту 8080, второй с apache на порту 8081. Теперь перейдя в браузере по ссылке 
+http://sampledomain.ru и несколько раз обновляя страницу можно наблюдать чередование ответов «It works!» и «Hello from NGINX in Docker!», значит 
+балансировка работает.
+
+Существует несколько методов балансировки:
+
+round-robin – используется по умолчанию, нагрузка распределяется равномерно между серверами с учетом веса.
+
+least_conn – запросы поступают к менее загруженным серверам.
+
+Пример использования:
+
+
+upstream backends {
+    least_conn;
+    server 127.0.0.1:8080;
+    server 127.0.0.1:8081;
+}
+ip_hash — запросы распределяются по серверам на основе IP-адресов клиентов, т.е. запросы одного и того же клиента будут всегда передаваться на 
+один и тот же сервер, пример:
+
+
+upstream backends {
+    ip_hash;
+    server 127.0.0.1:8080;
+    server 127.0.0.1:8081;
+}
+Если в группе серверов некоторые производительнее остальных, то следует воспользоваться механизмом весов. Это условная единица, которая позволяет
+ направлять наибольшую нагрузку на одни сервера и ограждать от нее другие.
+
+Разберем на примере:
+
+
+upstream backends {
+    server 127.0.0.1:8080 weight=5;
+    server 127.0.0.1:8081 weight=2;
+}
+В данной конфигурации, из 7 запросов, 5 будет обработано сервером 127.0.0.1:8080, а 2 машиной 127.0.0.1:8081
+
+Безопасность nginx
+В данном разделе мы рассмотрим общие принципы обеспечения безопасности как сервера в целом, так и отдельных его ресурсов.
+
+HTTP аутентификация
+Для защиты определенных ресурсов сайта, например, таких как панель администратора, статистика, каталоги с файлами для внутреннего использования, 
+иногда может потребоваться дополнительная мера – от пользователя потребуется ввести логин и пароль.
+
+Установим утилиту для генерации хешированных паролей:
+
+
+apt install apache2-utils
+Будет задан вопрос: Do you want to continue? [Y/n]
+Нажимаем Y, затем ENTER.
+
+Теперь создадим файл, в котором будет содержаться список логинов и паролей пользователей:
+
+
+touch /etc/nginx/conf.d/htpasswd
+Добавим пользователя user:
+
+
+htpasswd /etc/nginx/conf.d/htpasswd user
+Будет предложено ввести пароль, вводимые символы не отображаются, это нормально, после нажать ENTER:
+
+
+New password:
+Ввести повторно тот же пароль:
+
+
+Re-type new password:
+Появление ответа Adding password for user user означает, что все сделано верно. Точно так же можно добавить других пользователей. Чтобы сменить 
+пароль пользователя user – нужно повторно ввести предыдущую команду, данные в файле будут обновлены.
+
+В примере будем защищать доступ к нашему виртуальному хосту, а конкретно к статистике работы сервера, открываем файл конфигурации:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Редактируем location /nginx_status следующим образом:
+
+
+location /nginx_status {
+                stub_status on;
+                access_log off;
+                auth_basic "Enter your credential data: ";
+                auth_basic_user_file /etc/nginx/conf.d/htpasswd;
+
+        }
+Сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. Перезапускаем nginx:
+
+
+service nginx restart
+Теперь при переходе в раздел просмотра статистики sampledomain.ru/nginx_status необходимо будет сначала ввести логин и пароль для доступа к разделу, 
+в противном случае сервер выдаст ошибку: 401 Authorization Required.
+
+Авторизацию по паролю рекомендуется использовать исключительно для служебных целей и совместно с протоколом https, иначе данные передаются в открытом 
+виде.
+
+Ограничение доступа по IP адресу
+В качестве примера отредактируем тренировочный виртуальный хост:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Рассмотрим блок location /nginx_status, приведем его к виду:
+
+
+location /nginx_status {
+                stub_status on;
+                access_log off;
+                allow 192.168.0.0/24;
+                allow 192.168.1.1;
+                deny all;
+        }
+Сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. Перезапускаем nginx:
+
+
+service nginx restart
+В данном примере разрешен доступ для компьютеров из сети 192.168.0.0 с маской подсети 255.255.255.0 (/24) и хоста с адресом 192.168.1.1. 
+Для всех остальных доступ закрыт.
+
+Комбинация ограничений
+Рассмотрим ситуацию, когда имеется предприятие, с внутренней сетью 192.168.0.0/24, и сотрудники из нее должны беспрепятственно попадать
+ в нужный раздел, но в то же время необходимо предоставить доступ снаружи, используя авторизацию по логину и паролю. Тогда location /nginx_status
+ принимает следующий вид:
+
+
+location /nginx_status {
+                stub_status on;
+                access_log off;
+                satisfy any;
+                allow 192.168.0.0/24;
+                deny all;
+                auth_basic "Enter your credential data: ";
+                auth_basic_user_file /etc/nginx/conf.d/htpasswd;
+        }
+Сфокусируем внимание на директиве satisfy. В данном случае она имеет параметр any, что означает предоставление доступа при выполнении хотя бы
+ одного из условий. При смене параметра на all – сотрудникам предприятия будет разрешен доступ только из внутренней сети с аутентификацией по логину и 
+паролю.
+
+Предотвращение DDoS атак
+DDoS — это распределенная атака отказа в обслуживании, происходит с нескольких IP адресов, направлена на ухудшение или полное отсутствие доступности 
+сервера за счёт огромного количества запросов. Чаще всего, это происки недобросовестных конкурентов, реже из хулиганских побуждений. В nginx предусмотрен
+ механизм, позволяющий, если не полностью подавить атаку, то как минимум смягчить ее влияние на работу системы.
+
+Возможно ограничить скорость приема входящих запросов в единицу времени с одного IP адреса. Так же можно ограничить количество одновременных 
+подключений с одного IP адреса. Обе техники посмотрим на примере файла конфигурации виртуального хоста, открываем:
+
+
+nano /etc/nginx/sites-available/sampledomain.ru.conf
+Доводим до следующего состояния:
+
+
+limit_req_zone $binary_remote_addr zone=one:10m rate=90r/m;
+limit_conn_zone $binary_remote_addr zone=addr:10m;
+
+server {
+        listen 80;
+        server_name sampledomain.ru www.sampledomain.ru;
+        root /home/webuser/www/sampledomain.ru;
+        return 301 https://sampledomain.ru$request_uri;
+        }
+server
+        {
+        listen 443 ssl;
+        server_name sampledomain.ru www.sampledomain.ru;
+        # SSL support
+        ssl_certificate /etc/letsencrypt/live/sampledomain.ru/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/sampledomain.ru/privkey.pem;
+        charset utf-8;
+        root /home/webuser/www/sampledomain.ru;
+        index index.php index.html index.htm;
+
+        # Static content
+        location ~* ^.+.(jpg|jpeg|gif|png|css|zip|tgz|gz|rar|bz2|doc|xls|exe|pdf|ppt|txt|tar|mid|midi|wav|mp3|bmp|flv|rtf|js|swf|iso)$ {
+                        root /home/webuser/www/sampledomain.ru;
+                        expires 1d;
+                   }
+
+        location ~ \.php$
+        {
+                limit_req zone=one;
+                limit_conn addr 10;
+    		    include fastcgi.conf;
+                fastcgi_intercept_errors on;
+                try_files $uri =404;
+                fastcgi_pass unix://var/run/php/sampledomain.ru.sock;
+        }
+
+        location / {
+                try_files $uri $uri/ /index.php?q=$uri$args;
+        }
+        location /nginx_status {
+                stub_status on;
+                access_log off;
+                satisfy any;
+                allow 192.168.0.0/24;
+                deny all;
+                auth_basic "Enter your credential data: ";
+                auth_basic_user_file /etc/nginx/conf.d/htpasswd;
+        }
+        }
+Сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. Перезапускаем nginx:
+
+
+service nginx restart
+limit_req_zone – директива, хранящая состояние ключа, в нашем случае это адрес клиента $binary_remote_addr, в зоне one, размером 10 Мб, со скоростью 
+обработки запросов не превышающая 90 в минуту.
+limit_req – директива в location ~ .php$, ссылающаяся на зону разделяемой памяти.
+limit_conn_zone – директива, хранящая состояние ключа, в нашем случае это адрес клиента $binary_remote_addr, в зоне addr, размером 10Мб.
+limit_conn — директива в location ~ .php$, ссылающаяся на зону разделяемой памяти, задающая лимит на количество соединений с одного IP адреса, в 
+данном случае 10.
+Следует внимательно отнестись к настройке подобных значений, поскольку полезные и оптимальные значения для одного проекта, могут быть неприемлемы в
+ другом.
+
+Ошибки nginx
+В работе любых систем, а особенно на этапе пуско-наладочных работ, возникают ошибки, в данном разделе рассмотрим наиболее распространенные и 
+методы их устранения.
+
+502 bad gateway
+Эта ошибка говорит о том, что back-end, обрабатывающий запрос от nginx – перестал отвечать. Произойти это могло также по нескольким причинам. 
+Во-первых, back-end мог упасть полностью и для восстановления его необходимо запустить. Во-вторых, если nginx и back-end сервер находятся на физически
+ разных машинах – между ними могла банально пропасть связь. Для проверки необходимо воспользоваться командой ping. Так же, возможно, часть процессов 
+php-fpm перегружены или не хватает их количества для обслуживания всех клиентов, тогда эта ошибка будет иметь «плавающий» характер. Открываем файл:
+
+
+nano /etc/php/7.4/fpm/pool.d/sampledomain.ru.conf
+Если действительно проблема в нехватке процессов — стоит «покрутить» следующие настройки:
+
+
+pm = dynamic
+pm.max_children = 7
+pm.start_servers = 3
+pm.min_spare_servers = 2
+pm.max_spare_servers = 4
+504 Gateway Time-out
+Одна из причин возникновения ошибки – превышение времени ожидания ответа от сервера, например от php-fpm. Такое случается, когда скрипты php 
+долго выполняются или зависли. Если обработка запроса требует большего времени – увеличим время ожидания на передачу запроса fastcgi_send_timeout и 
+получение ответа fastcgi_read_timeout, редактируем блок location ~ .php$:
+
+
+location ~ \.php$
+        {
+                limit_req zone=one;
+                limit_conn addr 2;
+                include fastcgi.conf;
+                fastcgi_intercept_errors on;
+                try_files $uri =404;
+                fastcgi_pass unix://var/run/php/sampledomain.ru.sock;
+                fastcgi_send_timeout 120;
+                fastcgi_read_timeout 120;
+        }
+Сохраняем результат Ctrl+O, подтверждаем нажатием ENTER, выходим из редактора Ctrl+X. Перезапускаем nginx:
+
+
+service nginx restart
+413 Request Entity Too Large
+Ошибка возникает, когда на сервер загружается файл, превышающий значение директивы client_max_body_size, по умолчанию – 1 Мб. Добавим в блок server:
+
+
+server {
+	### остальные директивы
+client_max_body_size 50m;
+	### остальные директивы
+}
+В примере максимально допустимый размер тела запроса клиента увеличен до 50 Мб. При повторном возникновении ошибки – снова увеличить. Не забываем 
+сохраняться и после изменений – перезапускать nginx:
+
+
+service nginx restart
